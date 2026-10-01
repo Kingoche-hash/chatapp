@@ -1,0 +1,11 @@
+import jwt from 'jsonwebtoken';
+import { env } from '../config/env.js';
+
+export const signToken = (userId) =>
+  jwt.sign({ sub: userId }, env.jwtSecret, {
+    expiresIn: env.jwtExpiresIn,
+    algorithm: 'HS256',
+  });
+
+export const verifyToken = (token) =>
+  jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'] });
