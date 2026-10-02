@@ -3,8 +3,10 @@ import mongoose from 'mongoose';
 import app from './app.js';
 import { env } from './config/env.js';
 import { connectDB } from './config/db.js';
+import { initSocket } from './socket/index.js';
 
 const server = http.createServer(app);
+const io = initSocket(server);
 
 const start = async () => {
   try {
@@ -20,7 +22,8 @@ const start = async () => {
 
 const shutdown = async (signal) => {
   console.log(`${signal} received, shutting down...`);
-  server.close(async () => {
+  // io.close() also closes the HTTP server.
+  io.close(async () => {
     await mongoose.connection.close();
     process.exit(0);
   });

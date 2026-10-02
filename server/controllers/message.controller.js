@@ -1,4 +1,5 @@
 import { createMessage, getMessages } from '../services/message.service.js';
+import { broadcastMessage } from '../socket/emitters.js';
 
 export const sendMessage = async (req, res) => {
   const message = await createMessage({
@@ -6,6 +7,8 @@ export const sendMessage = async (req, res) => {
     senderId: req.user._id,
     content: req.body.content,
   });
+
+  broadcastMessage(message);
 
   res.status(201).json({ message });
 };
