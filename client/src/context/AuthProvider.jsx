@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthContext } from './authContext';
-import { getMeRequest, loginRequest, registerRequest } from '../services/auth.service';
+import { getMeRequest, loginRequest, registerRequest } from '../services/auth.Service';
 import { clearToken, getToken, setToken } from '../services/tokenStorage';
 
 export default function AuthProvider({ children }) {
