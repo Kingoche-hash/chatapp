@@ -2,17 +2,28 @@ import { useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useMessages } from '../hooks/useMessages';
 import { usePresence } from '../hooks/usePresence';
+import { useReadReceipts } from '../hooks/useReadReceipts';
+import { useTyping } from '../hooks/useTyping';
+import { useTypingEmitter } from '../hooks/useTypingEmitter';
 import { getConversationTitle, getOtherMember } from '../utils/conversation';
 import { formatLastSeen } from '../utils/formatLastSeen';
 import { formatTime } from '../utils/formatTime';
+import { formatTyping } from '../utils/formatTyping';
+import { getMessageStatus } from '../utils/messageStatus';
 import MessageComposer from './MessageComposer';
+import MessageStatus from './MessageStatus';
 
 export default function MessagePane({ conversation, onBack }) {
   const { user } = useAuth();
   const { isOnline, getLastSeen } = usePresence();
+  const { getTypingNames } = useTyping();
   const { messages, loading, error, hasMore, loadingOlder, loadOlder, send } = useMessages(
     conversation._id
   );
+  const { notifyTyping, stopTyping } = useTypingEmitter(conversation._id);
+
+  // Reports "read" while this chat is open and the window is in front.
+  useReadReceipts(conversation._id, messages);
 
   const bottomRef = useRef(null);
   const lastId = messages.at(-1)?._id;
@@ -23,6 +34,7 @@ export default function MessagePane({ conversation, onBack }) {
   }, [lastId]);
 
   const title = getConversationTitle(conversation, user._id);
+  const typingText = formatTyping(getTypingNames(conversation._id));
 
   // The line under the title: "Online", "Last seen ...", or "3 members, 2 online".
   let status = '';
@@ -102,8 +114,11 @@ export default function MessagePane({ conversation, onBack }) {
                   <p className="text-xs font-semibold text-emerald-300">{message.sender.username}</p>
                 )}
                 <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                <p className="mt-1 text-right text-[10px] text-slate-300/70">
-                  {formatTime(message.createdAt)}
+                <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-300/70">
+                  <span>{formatTime(message.createdAt)}</span>
+                  {mine && (
+                    <MessageStatus status={getMessageStatus(message, conversation, user._id)} />
+                  )}
                 </p>
               </div>
             </div>
@@ -113,7 +128,9 @@ export default function MessagePane({ conversation, onBack }) {
         <div ref={bottomRef} />
       </div>
 
-      <MessageComposer onSend={send} />
+      <div className="h-5 px-4 text-xs italic text-emerald-400">{typingText}</div>
+
+      <MessageComposer onSend={send} onTyping={notifyTyping} onStopTyping={stopTyping} />
     </section>
   );
 }

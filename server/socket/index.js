@@ -3,6 +3,7 @@ import { env } from '../config/env.js';
 import { authenticateSocket } from './auth.js';
 import { registerHandlers } from './handlers.js';
 import { handlePresenceConnect, handlePresenceDisconnect } from './presence.js';
+import { syncDelivered } from './receipts.js';
 import { setIO } from './io.js';
 import { conversationRoom, userRoom } from './emitters.js';
 
@@ -23,6 +24,7 @@ export const initSocket = (httpServer) => {
 
     registerHandlers(io, socket);
     handlePresenceConnect(io, socket);
+    syncDelivered(io, socket);
 
     console.log(`Socket connected: ${user.username} (${socket.id})`);
 

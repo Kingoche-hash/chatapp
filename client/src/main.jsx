@@ -6,6 +6,7 @@ import App from './App.jsx';
 import AuthProvider from './context/AuthProvider.jsx';
 import SocketProvider from './context/socketProvider.jsx';
 import PresenceProvider from './context/PresenceProvider.jsx';
+import TypingProvider from './context/TypingProvider.jsx';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -13,7 +14,9 @@ createRoot(document.getElementById('root')).render(
       <AuthProvider>
         <SocketProvider>
           <PresenceProvider>
-            <App />
+            <TypingProvider>
+              <App />
+            </TypingProvider>
           </PresenceProvider>
         </SocketProvider>
       </AuthProvider>

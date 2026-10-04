@@ -1,8 +1,10 @@
 import { useAuth } from '../hooks/useAuth';
 import { usePresence } from '../hooks/usePresence';
 import { useSocket } from '../hooks/useSocket';
+import { useTyping } from '../hooks/useTyping';
 import { getConversationTitle, getOtherMember } from '../utils/conversation';
 import { formatTime } from '../utils/formatTime';
+import { formatTyping } from '../utils/formatTyping';
 import UserSearch from './UserSearch';
 
 export default function Sidebar({
@@ -17,6 +19,7 @@ export default function Sidebar({
   const { user, logout } = useAuth();
   const { connected } = useSocket();
   const { isOnline } = usePresence();
+  const { getTypingNames } = useTyping();
 
   return (
     <aside
@@ -63,6 +66,7 @@ export default function Sidebar({
           const other =
             conversation.type === 'direct' ? getOtherMember(conversation, user._id) : null;
           const online = other ? isOnline(other._id) : false;
+          const typingText = formatTyping(getTypingNames(conversation._id));
 
           return (
             <li key={conversation._id}>
@@ -92,9 +96,14 @@ export default function Sidebar({
                     </span>
                   )}
                 </div>
-                <p className="truncate text-sm text-slate-400">
-                  {conversation.lastMessage?.content || 'No messages yet'}
-                </p>
+
+                {typingText ? (
+                  <p className="truncate text-sm italic text-emerald-400">{typingText}</p>
+                ) : (
+                  <p className="truncate text-sm text-slate-400">
+                    {conversation.lastMessage?.content || 'No messages yet'}
+                  </p>
+                )}
               </button>
             </li>
           );

@@ -1,5 +1,6 @@
 import { conversationIdParams, sendMessageSchema } from '../validators/conversation.validators.js';
-import { createMessage } from '../services/message.service.js';
+import { receiptSchema } from '../validators/receipt.validators.js';
+import { createMessage, markDelivered, markRead } from '../services/message.service.js';
 import { getConversationForMember } from '../services/conversation.service.js';
 import { filterOnline, getContactIds } from '../services/presence.service.js';
 import { AppError } from '../utils/AppError.js';
@@ -35,7 +36,14 @@ const handle = (handler) => async (payload, ack) => {
 
 export const registerHandlers = (io, socket) => {
   const userId = socket.data.user._id;
+  const username = socket.data.user.username;
+
   const canSend = createSocketLimiter({ limit: 20, windowMs: 10000 });
+  const canType = createSocketLimiter({ limit: 60, windowMs: 10000 });
+  const canReceipt = createSocketLimiter({ limit: 120, windowMs: 10000 });
+
+  // Conversations this socket is currently "whispering" in.
+  const typingIn = new Set();
 
   socket.on(
     'join_conversation',
@@ -80,6 +88,79 @@ export const registerHandlers = (io, socket) => {
       const contactIds = await getContactIds(userId);
       const onlineUserIds = await filterOnline(contactIds);
       return { onlineUserIds };
+    })
+  );
+
+  // Typing: a whisper to the other members of the room. Never stored anywhere.
+  const relayTyping = (event) => (payload) => {
+    if (!canType()) return;
+
+    const result = conversationIdParams.safeParse(payload);
+    if (!result.success) return;
+
+    const { conversationId } = result.data;
+    const room = conversationRoom(conversationId);
+
+    // Only rooms this socket already belongs to (it only joins rooms of its own conversations).
+    if (!socket.rooms.has(room)) return;
+
+    if (event === 'typing_start') typingIn.add(conversationId);
+    else typingIn.delete(conversationId);
+
+    socket.to(room).emit(event, { conversationId, userId: userId.toString(), username });
+  };
+
+  socket.on('typing_start', relayTyping('typing_start'));
+  socket.on('typing_stop', relayTyping('typing_stop'));
+
+  // If the connection drops mid-typing, tell the others to stop showing it.
+  socket.on('disconnect', () => {
+    typingIn.forEach((conversationId) => {
+      socket
+        .to(conversationRoom(conversationId))
+        .emit('typing_stop', { conversationId, userId: userId.toString(), username });
+    });
+  });
+
+  // "My browser received everything up to this message."
+  socket.on(
+    'message_delivered',
+    handle(async (payload) => {
+      if (!canReceipt()) throw new AppError('Too many requests', 429);
+
+      const { conversationId, messageId } = parse(receiptSchema, payload);
+      const changed = await markDelivered({ conversationId, userId, upToId: messageId });
+
+      if (changed > 0) {
+        io.to(conversationRoom(conversationId)).emit('messages_delivered', {
+          conversationId,
+          userId: userId.toString(),
+          upToId: messageId,
+        });
+      }
+
+      return {};
+    })
+  );
+
+  // "I have read everything up to this message."
+  socket.on(
+    'message_read',
+    handle(async (payload) => {
+      if (!canReceipt()) throw new AppError('Too many requests', 429);
+
+      const { conversationId, messageId } = parse(receiptSchema, payload);
+      const changed = await markRead({ conversationId, userId, upToId: messageId });
+
+      if (changed > 0) {
+        io.to(conversationRoom(conversationId)).emit('messages_read', {
+          conversationId,
+          userId: userId.toString(),
+          upToId: messageId,
+        });
+      }
+
+      return {};
     })
   );
 };

@@ -2,11 +2,15 @@ import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import MessagePane from '../components/MessagePane';
 import { useConversations } from '../hooks/useConversations';
+import { useDeliveryReceipts } from '../hooks/useDeliveryReceipts';
 import { startDirectConversation } from '../services/chat.service';
 
 export default function ChatPage() {
   const { conversations, loading, error, addConversation } = useConversations();
   const [activeId, setActiveId] = useState(null);
+
+  // Tells the server "delivered" for every incoming message, even in chats that are not open.
+  useDeliveryReceipts();
 
   const active = conversations.find((c) => c._id === activeId) || null;
 

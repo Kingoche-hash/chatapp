@@ -1,9 +1,17 @@
 import { useState } from 'react';
 
-export default function MessageComposer({ onSend }) {
+export default function MessageComposer({ onSend, onTyping, onStopTyping }) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+
+  const handleChange = (event) => {
+    const value = event.target.value;
+    setText(value);
+
+    if (value.trim()) onTyping();
+    else onStopTyping();
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -17,6 +25,7 @@ export default function MessageComposer({ onSend }) {
     try {
       await onSend(content);
       setText('');
+      onStopTyping();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -35,7 +44,8 @@ export default function MessageComposer({ onSend }) {
         <input
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleChange}
+          onBlur={onStopTyping}
           maxLength={4000}
           placeholder="Type a message"
           aria-label="Message"
