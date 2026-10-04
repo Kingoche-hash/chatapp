@@ -3,6 +3,8 @@ import mongoose from 'mongoose';
 import app from './app.js';
 import { env } from './config/env.js';
 import { connectDB } from './config/db.js';
+import { connectRedis, redis } from './config/redis.js';
+import { resetPresence } from './services/presence.service.js';
 import { initSocket } from './socket/index.js';
 
 const server = http.createServer(app);
@@ -11,6 +13,9 @@ const io = initSocket(server);
 const start = async () => {
   try {
     await connectDB();
+    await connectRedis();
+    await resetPresence();
+
     server.listen(env.port, () => {
       console.log(`Server running on port ${env.port} (${env.nodeEnv})`);
     });
@@ -25,6 +30,7 @@ const shutdown = async (signal) => {
   // io.close() also closes the HTTP server.
   io.close(async () => {
     await mongoose.connection.close();
+    redis.disconnect();
     process.exit(0);
   });
 };

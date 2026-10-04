@@ -1,6 +1,7 @@
 import { useAuth } from '../hooks/useAuth';
+import { usePresence } from '../hooks/usePresence';
 import { useSocket } from '../hooks/useSocket';
-import { getConversationTitle } from '../utils/conversation';
+import { getConversationTitle, getOtherMember } from '../utils/conversation';
 import { formatTime } from '../utils/formatTime';
 import UserSearch from './UserSearch';
 
@@ -15,6 +16,7 @@ export default function Sidebar({
 }) {
   const { user, logout } = useAuth();
   const { connected } = useSocket();
+  const { isOnline } = usePresence();
 
   return (
     <aside
@@ -57,30 +59,46 @@ export default function Sidebar({
           </li>
         )}
 
-        {conversations.map((conversation) => (
-          <li key={conversation._id}>
-            <button
-              onClick={() => onSelect(conversation._id)}
-              className={`w-full border-b border-slate-700/50 px-4 py-3 text-left hover:bg-slate-700/60 ${
-                conversation._id === activeId ? 'bg-slate-700' : ''
-              }`}
-            >
-              <div className="flex justify-between gap-2">
-                <span className="truncate font-medium">
-                  {getConversationTitle(conversation, user._id)}
-                </span>
-                {conversation.lastMessage && (
-                  <span className="shrink-0 text-xs text-slate-400">
-                    {formatTime(conversation.lastMessage.createdAt)}
+        {conversations.map((conversation) => {
+          const other =
+            conversation.type === 'direct' ? getOtherMember(conversation, user._id) : null;
+          const online = other ? isOnline(other._id) : false;
+
+          return (
+            <li key={conversation._id}>
+              <button
+                onClick={() => onSelect(conversation._id)}
+                className={`w-full border-b border-slate-700/50 px-4 py-3 text-left hover:bg-slate-700/60 ${
+                  conversation._id === activeId ? 'bg-slate-700' : ''
+                }`}
+              >
+                <div className="flex justify-between gap-2">
+                  <span className="flex min-w-0 items-center gap-2">
+                    {other && (
+                      <span
+                        aria-label={online ? 'Online' : 'Offline'}
+                        className={`h-2 w-2 shrink-0 rounded-full ${
+                          online ? 'bg-emerald-400' : 'bg-slate-500'
+                        }`}
+                      />
+                    )}
+                    <span className="truncate font-medium">
+                      {getConversationTitle(conversation, user._id)}
+                    </span>
                   </span>
-                )}
-              </div>
-              <p className="truncate text-sm text-slate-400">
-                {conversation.lastMessage?.content || 'No messages yet'}
-              </p>
-            </button>
-          </li>
-        ))}
+                  {conversation.lastMessage && (
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {formatTime(conversation.lastMessage.createdAt)}
+                    </span>
+                  )}
+                </div>
+                <p className="truncate text-sm text-slate-400">
+                  {conversation.lastMessage?.content || 'No messages yet'}
+                </p>
+              </button>
+            </li>
+          );
+        })}
       </ul>
     </aside>
   );

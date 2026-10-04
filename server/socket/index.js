@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { env } from '../config/env.js';
 import { authenticateSocket } from './auth.js';
 import { registerHandlers } from './handlers.js';
+import { handlePresenceConnect, handlePresenceDisconnect } from './presence.js';
 import { setIO } from './io.js';
 import { conversationRoom, userRoom } from './emitters.js';
 
@@ -21,11 +22,13 @@ export const initSocket = (httpServer) => {
     conversationIds.forEach((id) => socket.join(conversationRoom(id)));
 
     registerHandlers(io, socket);
+    handlePresenceConnect(io, socket);
 
     console.log(`Socket connected: ${user.username} (${socket.id})`);
 
     socket.on('disconnect', (reason) => {
       console.log(`Socket disconnected: ${user.username} (${reason})`);
+      handlePresenceDisconnect(io, socket);
     });
   });
 

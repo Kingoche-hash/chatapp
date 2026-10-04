@@ -1,6 +1,7 @@
 import { conversationIdParams, sendMessageSchema } from '../validators/conversation.validators.js';
 import { createMessage } from '../services/message.service.js';
 import { getConversationForMember } from '../services/conversation.service.js';
+import { filterOnline, getContactIds } from '../services/presence.service.js';
 import { AppError } from '../utils/AppError.js';
 import { createSocketLimiter } from '../utils/socketRateLimit.js';
 import { broadcastMessage, conversationRoom } from './emitters.js';
@@ -69,6 +70,16 @@ export const registerHandlers = (io, socket) => {
       broadcastMessage(message);
 
       return { message: JSON.parse(JSON.stringify(message)) };
+    })
+  );
+
+  // "Who is online right now?" Answers only about people the user shares a chat with.
+  socket.on(
+    'get_presence',
+    handle(async () => {
+      const contactIds = await getContactIds(userId);
+      const onlineUserIds = await filterOnline(contactIds);
+      return { onlineUserIds };
     })
   );
 };

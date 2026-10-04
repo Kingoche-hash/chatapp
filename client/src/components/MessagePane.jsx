@@ -1,12 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useMessages } from '../hooks/useMessages';
-import { getConversationTitle } from '../utils/conversation';
+import { usePresence } from '../hooks/usePresence';
+import { getConversationTitle, getOtherMember } from '../utils/conversation';
+import { formatLastSeen } from '../utils/formatLastSeen';
 import { formatTime } from '../utils/formatTime';
 import MessageComposer from './MessageComposer';
 
 export default function MessagePane({ conversation, onBack }) {
   const { user } = useAuth();
+  const { isOnline, getLastSeen } = usePresence();
   const { messages, loading, error, hasMore, loadingOlder, loadOlder, send } = useMessages(
     conversation._id
   );
@@ -21,6 +24,25 @@ export default function MessagePane({ conversation, onBack }) {
 
   const title = getConversationTitle(conversation, user._id);
 
+  // The line under the title: "Online", "Last seen ...", or "3 members, 2 online".
+  let status = '';
+  let statusIsOnline = false;
+
+  if (conversation.type === 'direct') {
+    const other = getOtherMember(conversation, user._id);
+
+    if (other) {
+      statusIsOnline = isOnline(other._id);
+      status = statusIsOnline ? 'Online' : formatLastSeen(getLastSeen(other));
+    }
+  } else {
+    const onlineCount = conversation.members.filter(
+      (member) => member._id === user._id || isOnline(member._id)
+    ).length;
+
+    status = `${conversation.members.length} members, ${onlineCount} online`;
+  }
+
   return (
     <section className="flex flex-col flex-1 min-w-0">
       <header className="flex items-center gap-3 border-b border-slate-700 px-4 py-3">
@@ -33,8 +55,10 @@ export default function MessagePane({ conversation, onBack }) {
         </button>
         <div className="min-w-0">
           <h2 className="font-semibold truncate">{title}</h2>
-          {conversation.type === 'group' && (
-            <p className="text-xs text-slate-400">{conversation.members.length} members</p>
+          {status && (
+            <p className={`text-xs ${statusIsOnline ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {status}
+            </p>
           )}
         </div>
       </header>
