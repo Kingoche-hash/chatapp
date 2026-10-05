@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchMessages } from '../services/chat.service';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchMessages, sendFilesRequest } from '../services/chat.service';
 import { getErrorMessage } from '../utils/getErrorMessage';
 import { useSocket } from './useSocket';
 
@@ -33,30 +33,45 @@ const withReceipt = (message, field, userId) =>
     ? message
     : { ...message, [field]: [...(message[field] || []), userId] };
 
-export const useMessages = (conversationId) => {
+// aroundId: open the conversation around this message (used when jumping to a search result).
+export const useMessages = (conversationId, aroundId = null) => {
   const { socket } = useSocket();
 
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
+
+  // "hasNewer" means we are looking at the past and newer messages exist below.
+  const [hasNewer, setHasNewer] = useState(Boolean(aroundId));
+  const [newerCursor, setNewerCursor] = useState(null);
+  const [loadingNewer, setLoadingNewer] = useState(false);
+
+  const hasNewerRef = useRef(Boolean(aroundId));
+
+  useEffect(() => {
+    hasNewerRef.current = hasNewer;
+  }, [hasNewer]);
 
   const addMessage = useCallback((message) => {
     setMessages((prev) => mergeMessages(prev, [message]));
   }, []);
 
-  // Load the newest page of history.
+  // Load the first page: the newest messages, or a window around one message.
   useEffect(() => {
     let cancelled = false;
 
-    fetchMessages(conversationId)
+    fetchMessages(conversationId, aroundId ? { around: aroundId } : {})
       .then((data) => {
         if (cancelled) return;
         setMessages((prev) => mergeMessages(data.messages, prev));
         setHasMore(data.hasMore);
         setNextCursor(data.nextCursor);
+        setHasNewer(Boolean(data.hasNewer));
+        setNewerCursor(data.newerCursor ?? null);
       })
       .catch((err) => {
         if (!cancelled) setError(getErrorMessage(err));
@@ -68,7 +83,7 @@ export const useMessages = (conversationId) => {
     return () => {
       cancelled = true;
     };
-  }, [conversationId]);
+  }, [conversationId, aroundId]);
 
   // Listen for live messages in this conversation.
   useEffect(() => {
@@ -77,7 +92,12 @@ export const useMessages = (conversationId) => {
     socket.emit('join_conversation', { conversationId });
 
     const handleMessage = (message) => {
-      if (message.conversation === conversationId) addMessage(message);
+      if (message.conversation !== conversationId) return;
+
+      // While reading the past, new messages wait until "Jump to latest".
+      if (hasNewerRef.current) return;
+
+      addMessage(message);
     };
 
     socket.on('receive_message', handleMessage);
@@ -141,7 +161,38 @@ export const useMessages = (conversationId) => {
     }
   }, [conversationId, hasMore, loadingOlder, nextCursor]);
 
-  // Sends through the live line and waits for the server's "got it".
+  const loadNewer = useCallback(async () => {
+    if (!hasNewer || loadingNewer) return;
+
+    setLoadingNewer(true);
+
+    try {
+      const data = await fetchMessages(conversationId, { after: newerCursor });
+      setMessages((prev) => mergeMessages(prev, data.messages));
+      setHasNewer(Boolean(data.hasNewer));
+      setNewerCursor(data.newerCursor ?? null);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoadingNewer(false);
+    }
+  }, [conversationId, hasNewer, loadingNewer, newerCursor]);
+
+  // Back to the newest messages.
+  const jumpToLatest = useCallback(async () => {
+    try {
+      const data = await fetchMessages(conversationId);
+      setMessages(data.messages);
+      setHasMore(data.hasMore);
+      setNextCursor(data.nextCursor);
+      setHasNewer(false);
+      setNewerCursor(null);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }, [conversationId]);
+
+  // Sends text through the live line and waits for the server's "got it".
   const send = useCallback(
     (content) =>
       new Promise((resolve, reject) => {
@@ -154,12 +205,43 @@ export const useMessages = (conversationId) => {
           if (err) return reject(new Error('The server did not answer. Please try again.'));
           if (!response.ok) return reject(new Error(response.error));
 
-          addMessage(response.message);
+          // If we were reading the past, go to the latest so the new message is visible.
+          if (hasNewerRef.current) jumpToLatest();
+          else addMessage(response.message);
+
           resolve();
         });
       }),
-    [socket, conversationId, addMessage]
+    [socket, conversationId, addMessage, jumpToLatest]
   );
 
-  return { messages, loading, error, hasMore, loadingOlder, loadOlder, send };
+  // Sends files (with an optional caption) to the server, which stores them in Cloudinary.
+  const sendFiles = useCallback(
+    async (files, content, onProgress) => {
+      try {
+        const message = await sendFilesRequest(conversationId, files, content, onProgress);
+
+        if (hasNewerRef.current) await jumpToLatest();
+        else addMessage(message);
+      } catch (err) {
+        throw new Error(getErrorMessage(err));
+      }
+    },
+    [conversationId, addMessage, jumpToLatest]
+  );
+
+  return {
+    messages,
+    loading,
+    error,
+    hasMore,
+    loadingOlder,
+    loadOlder,
+    hasNewer,
+    loadingNewer,
+    loadNewer,
+    jumpToLatest,
+    send,
+    sendFiles,
+  };
 };

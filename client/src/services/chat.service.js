@@ -5,9 +5,18 @@ export const fetchConversations = async () => {
   return res.data.conversations;
 };
 
-export const fetchMessages = async (conversationId, { before, limit = 30 } = {}) => {
+// Three ways to ask: the newest page, older ones (before), a window around one message (around),
+// or newer ones (after).
+export const fetchMessages = async (conversationId, { before, after, around, limit = 30 } = {}) => {
   const res = await api.get(`/conversations/${conversationId}/messages`, {
-    params: { limit, before },
+    params: { limit, before, after, around },
+  });
+  return res.data;
+};
+
+export const searchMessagesRequest = async ({ q, conversationId, senderId, before }) => {
+  const res = await api.get('/search/messages', {
+    params: { q, conversationId, senderId, before },
   });
   return res.data;
 };
@@ -20,4 +29,20 @@ export const searchUsersRequest = async (search) => {
 export const startDirectConversation = async (userId) => {
   const res = await api.post('/conversations', { type: 'direct', userId });
   return res.data.conversation;
+};
+
+// Sends files (and an optional caption) in one request. Reports upload progress as 0 to 100.
+export const sendFilesRequest = async (conversationId, files, content, onProgress) => {
+  const form = new FormData();
+  files.forEach((file) => form.append('files', file));
+  if (content) form.append('content', content);
+
+  const res = await api.post(`/conversations/${conversationId}/attachments`, form, {
+    timeout: 120000,
+    onUploadProgress: (event) => {
+      if (event.total) onProgress?.(Math.round((event.loaded * 100) / event.total));
+    },
+  });
+
+  return res.data.message;
 };

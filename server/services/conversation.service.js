@@ -7,7 +7,7 @@ const MEMBER_FIELDS = 'username avatar isOnline lastSeen';
 const populateConversation = (query) =>
   query
     .populate('members', MEMBER_FIELDS)
-    .populate({ path: 'lastMessage', select: 'content sender createdAt' });
+    .populate({ path: 'lastMessage', select: 'content sender createdAt attachments' });
 
 // The access check used everywhere: is this user sitting at this table?
 export const getConversationForMember = async (conversationId, userId) => {

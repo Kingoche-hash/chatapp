@@ -1,0 +1,46 @@
+import Message from '../models/Message.js';
+import Conversation from '../models/Conversation.js';
+import { getConversationForMember } from './conversation.service.js';
+
+export const searchMessages = async ({ userId, query, conversationId, senderId, before, limit }) => {
+  let conversationFilter;
+
+  if (conversationId) {
+    // Searching one chat: the person must belong to it.
+    await getConversationForMember(conversationId, userId);
+    conversationFilter = conversationId;
+  } else {
+    // Searching everywhere: only inside the chats the person belongs to.
+    const mine = await Conversation.find({ members: userId }).select('_id').lean();
+
+    if (mine.length === 0) {
+      return { results: [], hasMore: false, nextCursor: null };
+    }
+
+    conversationFilter = { $in: mine.map((conversation) => conversation._id) };
+  }
+
+  const filter = {
+    $text: { $search: query },
+    conversation: conversationFilter,
+  };
+
+  if (senderId) filter.sender = senderId;
+  if (before) filter._id = { $lt: before };
+
+  // Newest first. Ask for one extra result, just to learn whether more exist.
+  const found = await Message.find(filter)
+    .sort({ _id: -1 })
+    .limit(limit + 1)
+    .select('conversation sender content attachments createdAt')
+    .populate('sender', 'username avatar');
+
+  const hasMore = found.length > limit;
+  const results = hasMore ? found.slice(0, limit) : found;
+
+  return {
+    results,
+    hasMore,
+    nextCursor: hasMore ? results.at(-1)._id : null,
+  };
+};

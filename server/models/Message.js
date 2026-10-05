@@ -25,6 +25,11 @@ const messageSchema = new Schema(
   { timestamps: true }
 );
 
+// Fast paging inside one conversation.
 messageSchema.index({ conversation: 1, _id: -1 });
+
+// Fast word search in message text. "none" means no language-specific guessing,
+// so it works the same for English, Lithuanian and any other language.
+messageSchema.index({ content: 'text' }, { default_language: 'none' });
 
 export default mongoose.model('Message', messageSchema);

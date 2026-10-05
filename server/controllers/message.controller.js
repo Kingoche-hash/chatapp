@@ -14,13 +14,15 @@ export const sendMessage = async (req, res) => {
 };
 
 export const getConversationMessages = async (req, res) => {
-  const { limit, before } = req.valid.query;
+  const { limit, before, after, around } = req.valid.query;
 
   const result = await getMessages({
     conversationId: req.params.conversationId,
     userId: req.user._id,
     limit,
     before,
+    after,
+    around,
   });
 
   res.status(200).json(result);

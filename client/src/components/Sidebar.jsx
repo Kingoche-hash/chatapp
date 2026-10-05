@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { usePresence } from '../hooks/usePresence';
 import { useSocket } from '../hooks/useSocket';
@@ -5,21 +6,32 @@ import { useTyping } from '../hooks/useTyping';
 import { getConversationTitle, getOtherMember } from '../utils/conversation';
 import { formatTime } from '../utils/formatTime';
 import { formatTyping } from '../utils/formatTyping';
+import { getMessagePreview } from '../utils/messagePreview';
+import SearchPanel from './SearchPanel';
 import UserSearch from './UserSearch';
+
+const tabClass = (selected) =>
+  `flex-1 py-2 text-sm font-medium ${
+    selected ? 'border-b-2 border-emerald-400 text-white' : 'text-slate-400 hover:text-slate-200'
+  }`;
 
 export default function Sidebar({
   conversations,
+  activeConversation,
   loading,
   error,
   activeId,
   onSelect,
   onStartChat,
+  onOpenResult,
   className = '',
 }) {
   const { user, logout } = useAuth();
   const { connected } = useSocket();
   const { isOnline } = usePresence();
   const { getTypingNames } = useTyping();
+
+  const [tab, setTab] = useState('chats');
 
   return (
     <aside
@@ -45,70 +57,91 @@ export default function Sidebar({
         </button>
       </div>
 
-      <UserSearch onPick={onStartChat} />
+      <div className="flex border-b border-slate-700">
+        <button type="button" onClick={() => setTab('chats')} className={tabClass(tab === 'chats')}>
+          Chats
+        </button>
+        <button type="button" onClick={() => setTab('search')} className={tabClass(tab === 'search')}>
+          Search
+        </button>
+      </div>
 
-      <ul className="flex-1 overflow-y-auto">
-        {loading && <li className="px-4 py-3 text-sm text-slate-400">Loading conversations...</li>}
+      {tab === 'search' ? (
+        <SearchPanel
+          conversations={conversations}
+          activeConversation={activeConversation}
+          onOpen={onOpenResult}
+        />
+      ) : (
+        <>
+          <UserSearch onPick={onStartChat} />
 
-        {error && (
-          <li role="alert" className="px-4 py-3 text-sm text-red-400">
-            {error}
-          </li>
-        )}
+          <ul className="flex-1 overflow-y-auto">
+            {loading && (
+              <li className="px-4 py-3 text-sm text-slate-400">Loading conversations...</li>
+            )}
 
-        {!loading && !error && conversations.length === 0 && (
-          <li className="px-4 py-3 text-sm text-slate-500">
-            No conversations yet. Search for someone above to start one.
-          </li>
-        )}
+            {error && (
+              <li role="alert" className="px-4 py-3 text-sm text-red-400">
+                {error}
+              </li>
+            )}
 
-        {conversations.map((conversation) => {
-          const other =
-            conversation.type === 'direct' ? getOtherMember(conversation, user._id) : null;
-          const online = other ? isOnline(other._id) : false;
-          const typingText = formatTyping(getTypingNames(conversation._id));
+            {!loading && !error && conversations.length === 0 && (
+              <li className="px-4 py-3 text-sm text-slate-500">
+                No conversations yet. Search for someone above to start one.
+              </li>
+            )}
 
-          return (
-            <li key={conversation._id}>
-              <button
-                onClick={() => onSelect(conversation._id)}
-                className={`w-full border-b border-slate-700/50 px-4 py-3 text-left hover:bg-slate-700/60 ${
-                  conversation._id === activeId ? 'bg-slate-700' : ''
-                }`}
-              >
-                <div className="flex justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-2">
-                    {other && (
-                      <span
-                        aria-label={online ? 'Online' : 'Offline'}
-                        className={`h-2 w-2 shrink-0 rounded-full ${
-                          online ? 'bg-emerald-400' : 'bg-slate-500'
-                        }`}
-                      />
+            {conversations.map((conversation) => {
+              const other =
+                conversation.type === 'direct' ? getOtherMember(conversation, user._id) : null;
+              const online = other ? isOnline(other._id) : false;
+              const typingText = formatTyping(getTypingNames(conversation._id));
+
+              return (
+                <li key={conversation._id}>
+                  <button
+                    onClick={() => onSelect(conversation._id)}
+                    className={`w-full border-b border-slate-700/50 px-4 py-3 text-left hover:bg-slate-700/60 ${
+                      conversation._id === activeId ? 'bg-slate-700' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2">
+                        {other && (
+                          <span
+                            aria-label={online ? 'Online' : 'Offline'}
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              online ? 'bg-emerald-400' : 'bg-slate-500'
+                            }`}
+                          />
+                        )}
+                        <span className="truncate font-medium">
+                          {getConversationTitle(conversation, user._id)}
+                        </span>
+                      </span>
+                      {conversation.lastMessage && (
+                        <span className="shrink-0 text-xs text-slate-400">
+                          {formatTime(conversation.lastMessage.createdAt)}
+                        </span>
+                      )}
+                    </div>
+
+                    {typingText ? (
+                      <p className="truncate text-sm italic text-emerald-400">{typingText}</p>
+                    ) : (
+                      <p className="truncate text-sm text-slate-400">
+                        {getMessagePreview(conversation.lastMessage)}
+                      </p>
                     )}
-                    <span className="truncate font-medium">
-                      {getConversationTitle(conversation, user._id)}
-                    </span>
-                  </span>
-                  {conversation.lastMessage && (
-                    <span className="shrink-0 text-xs text-slate-400">
-                      {formatTime(conversation.lastMessage.createdAt)}
-                    </span>
-                  )}
-                </div>
-
-                {typingText ? (
-                  <p className="truncate text-sm italic text-emerald-400">{typingText}</p>
-                ) : (
-                  <p className="truncate text-sm text-slate-400">
-                    {conversation.lastMessage?.content || 'No messages yet'}
-                  </p>
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </aside>
   );
 }

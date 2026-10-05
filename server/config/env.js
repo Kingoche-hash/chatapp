@@ -2,7 +2,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const required = ['MONGODB_URI', 'JWT_SECRET', 'REDIS_URL'];
+const required = [
+  'MONGODB_URI',
+  'JWT_SECRET',
+  'REDIS_URL',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+];
 const missing = required.filter((key) => !process.env[key]);
 
 if (missing.length > 0) {
@@ -23,4 +30,9 @@ export const env = {
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    apiKey: process.env.CLOUDINARY_API_KEY,
+    apiSecret: process.env.CLOUDINARY_API_SECRET,
+  },
 };

@@ -8,3 +8,11 @@ export const authLimiter = rateLimit({
   legacyHeaders: false,
   message: { message: 'Too many attempts, please try again later' },
 });
+
+export const uploadLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  limit: env.nodeEnv === 'production' ? 30 : 200,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { message: 'Too many uploads, please try again later' },
+});

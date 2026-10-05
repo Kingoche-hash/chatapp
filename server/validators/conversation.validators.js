@@ -29,4 +29,6 @@ export const sendMessageSchema = z.object({
 export const messageQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).default(30),
   before: objectId.optional(),
+  after: objectId.optional(),
+  around: objectId.optional(),
 });

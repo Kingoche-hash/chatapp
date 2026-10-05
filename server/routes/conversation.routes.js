@@ -5,14 +5,19 @@ import {
   getConversationById,
 } from '../controllers/conversation.controller.js';
 import { sendMessage, getConversationMessages } from '../controllers/message.controller.js';
+import { sendMessageWithFiles } from '../controllers/attachment.controller.js';
 import { protect } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
+import { requireConversationMember } from '../middleware/requireMember.js';
+import { uploadFiles } from '../middleware/upload.js';
+import { uploadLimiter } from '../middleware/rateLimiter.js';
 import {
   conversationIdParams,
   createConversationSchema,
   sendMessageSchema,
   messageQuerySchema,
 } from '../validators/conversation.validators.js';
+import { captionSchema } from '../validators/attachment.validators.js';
 
 const router = Router();
 
@@ -35,6 +40,17 @@ router.post(
   validate(conversationIdParams, 'params'),
   validate(sendMessageSchema),
   sendMessage
+);
+
+// Message with files: check the person belongs here first, then receive the files.
+router.post(
+  '/:conversationId/attachments',
+  uploadLimiter,
+  validate(conversationIdParams, 'params'),
+  requireConversationMember,
+  uploadFiles,
+  validate(captionSchema),
+  sendMessageWithFiles
 );
 
 export default router;

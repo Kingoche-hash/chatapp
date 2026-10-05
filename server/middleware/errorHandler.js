@@ -26,6 +26,20 @@ export const errorHandler = (err, req, res, next) => {
     message = 'Invalid JSON body';
   }
 
+  // Problems with uploaded files (too big, too many, wrong field).
+  if (err.name === 'MulterError') {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      status = 413;
+      message = 'A file is too large (maximum 10 MB each)';
+    } else if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+      status = 400;
+      message = 'Too many files (maximum 5), or the files were not sent in the "files" field';
+    } else {
+      status = 400;
+      message = 'Invalid upload';
+    }
+  }
+
   if (status >= 500) console.error(err);
 
   res.status(status).json({
