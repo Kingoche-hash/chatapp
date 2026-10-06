@@ -1,4 +1,5 @@
 import Conversation from '../models/Conversation.js';
+import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
 
@@ -77,8 +78,31 @@ export const createGroupConversation = async (currentUserId, { name, memberIds }
   return populateConversation(Conversation.findById(conversation._id));
 };
 
+// My conversations, newest first, each with the number of messages I have not read yet.
 export const listConversations = async (userId) => {
-  return populateConversation(Conversation.find({ members: userId }).sort({ lastMessageAt: -1 }));
+  const conversations = await populateConversation(
+    Conversation.find({ members: userId }).sort({ lastMessageAt: -1 })
+  );
+
+  if (conversations.length === 0) return [];
+
+  const counts = await Message.aggregate([
+    {
+      $match: {
+        conversation: { $in: conversations.map((conversation) => conversation._id) },
+        sender: { $ne: userId },
+        readBy: { $ne: userId },
+      },
+    },
+    { $group: { _id: '$conversation', count: { $sum: 1 } } },
+  ]);
+
+  const unreadById = new Map(counts.map((item) => [item._id.toString(), item.count]));
+
+  return conversations.map((conversation) => ({
+    ...conversation.toJSON(),
+    unreadCount: unreadById.get(conversation._id.toString()) ?? 0,
+  }));
 };
 
 export const getConversation = async (conversationId, userId) => {

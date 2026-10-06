@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useMessages } from '../hooks/useMessages';
 import { usePresence } from '../hooks/usePresence';
@@ -6,15 +6,18 @@ import { useReadReceipts } from '../hooks/useReadReceipts';
 import { useTyping } from '../hooks/useTyping';
 import { useTypingEmitter } from '../hooks/useTypingEmitter';
 import { getConversationTitle, getOtherMember } from '../utils/conversation';
+import { dayKey, formatDayLabel } from '../utils/formatDay';
 import { formatLastSeen } from '../utils/formatLastSeen';
 import { formatTime } from '../utils/formatTime';
 import { formatTyping } from '../utils/formatTyping';
 import { getMessageStatus } from '../utils/messageStatus';
 import AttachmentList from './AttachmentList';
+import Avatar from './Avatar';
 import MessageComposer from './MessageComposer';
 import MessageStatus from './MessageStatus';
+import { MessageListSkeleton } from './Skeleton';
 
-export default function MessagePane({ conversation, onBack, aroundId = null }) {
+export default function MessagePane({ conversation, onBack, onRetry, aroundId = null }) {
   const { user } = useAuth();
   const { isOnline, getLastSeen } = usePresence();
   const { getTypingNames } = useTyping();
@@ -74,12 +77,14 @@ export default function MessagePane({ conversation, onBack, aroundId = null }) {
   // The line under the title: "Online", "Last seen ...", or "3 members, 2 online".
   let status = '';
   let statusIsOnline = false;
+  let headerOnline = null;
 
   if (conversation.type === 'direct') {
     const other = getOtherMember(conversation, user._id);
 
     if (other) {
       statusIsOnline = isOnline(other._id);
+      headerOnline = statusIsOnline;
       status = statusIsOnline ? 'Online' : formatLastSeen(getLastSeen(other));
     }
   } else {
@@ -91,7 +96,7 @@ export default function MessagePane({ conversation, onBack, aroundId = null }) {
   }
 
   return (
-    <section className="flex flex-col flex-1 min-w-0">
+    <section className="flex min-h-0 flex-1 flex-col min-w-0">
       <header className="flex items-center gap-3 border-b border-slate-700 px-4 py-3">
         <button
           onClick={onBack}
@@ -100,6 +105,7 @@ export default function MessagePane({ conversation, onBack, aroundId = null }) {
         >
           ←
         </button>
+        <Avatar name={title} online={headerOnline} />
         <div className="min-w-0">
           <h2 className="font-semibold truncate">{title}</h2>
           {status && (
@@ -123,51 +129,70 @@ export default function MessagePane({ conversation, onBack, aroundId = null }) {
           </div>
         )}
 
-        {loading && <p className="text-center text-sm text-slate-400">Loading messages...</p>}
+        {loading && <MessageListSkeleton />}
 
         {error && (
-          <p role="alert" className="text-center text-sm text-red-400">
-            {error}
-          </p>
+          <div role="alert" className="py-4 text-center text-sm text-red-400">
+            <p>{error}</p>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2 rounded-lg bg-slate-700 px-3 py-1 text-slate-100 hover:bg-slate-600"
+            >
+              Try again
+            </button>
+          </div>
         )}
 
         {!loading && !error && messages.length === 0 && (
-          <p className="text-center text-sm text-slate-500">No messages yet. Say hello!</p>
+          <div className="py-16 text-center text-sm text-slate-500">
+            <p className="text-3xl" aria-hidden="true">👋</p>
+            <p className="mt-2 font-medium text-slate-300">No messages yet</p>
+            <p className="mt-1">Say hello!</p>
+          </div>
         )}
 
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           const mine = message.sender._id === user._id;
           const glowing = highlightId === message._id;
+          const previous = messages[index - 1];
+          const startsNewDay = !previous || dayKey(previous.createdAt) !== dayKey(message.createdAt);
 
           return (
-            <div
-              key={message._id}
-              id={`message-${message._id}`}
-              className={`flex ${mine ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl px-3 py-2 transition-shadow ${
-                  mine ? 'bg-emerald-600' : 'bg-slate-700'
-                } ${glowing ? 'ring-2 ring-amber-300' : ''}`}
-              >
-                {!mine && conversation.type === 'group' && (
-                  <p className="text-xs font-semibold text-emerald-300">{message.sender.username}</p>
-                )}
+            <Fragment key={message._id}>
+              {startsNewDay && (
+                <div className="flex justify-center py-2">
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-400">
+                    {formatDayLabel(message.createdAt)}
+                  </span>
+                </div>
+              )}
 
-                <AttachmentList attachments={message.attachments} />
-
-                {message.content && (
-                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
-                )}
-
-                <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-300/70">
-                  <span>{formatTime(message.createdAt)}</span>
-                  {mine && (
-                    <MessageStatus status={getMessageStatus(message, conversation, user._id)} />
+              <div id={`message-${message._id}`} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                <div
+                  className={`max-w-[85%] rounded-2xl px-3 py-2 transition-shadow sm:max-w-[75%] ${
+                    mine ? 'bg-emerald-600' : 'bg-slate-700'
+                  } ${glowing ? 'ring-2 ring-amber-300' : ''}`}
+                >
+                  {!mine && conversation.type === 'group' && (
+                    <p className="text-xs font-semibold text-emerald-300">{message.sender.username}</p>
                   )}
-                </p>
+
+                  <AttachmentList attachments={message.attachments} />
+
+                  {message.content && (
+                    <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                  )}
+
+                  <p className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-300/70">
+                    <span>{formatTime(message.createdAt)}</span>
+                    {mine && (
+                      <MessageStatus status={getMessageStatus(message, conversation, user._id)} />
+                    )}
+                  </p>
+                </div>
               </div>
-            </div>
+            </Fragment>
           );
         })}
 
@@ -175,7 +200,7 @@ export default function MessagePane({ conversation, onBack, aroundId = null }) {
       </div>
 
       {hasNewer && (
-        <div className="flex items-center justify-center gap-4 border-t border-slate-700 bg-slate-800 px-4 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 border-t border-slate-700 bg-slate-800 px-4 py-2 text-sm">
           <span className="text-slate-400">You are reading older messages</span>
           <button
             onClick={loadNewer}
@@ -192,12 +217,14 @@ export default function MessagePane({ conversation, onBack, aroundId = null }) {
 
       <div className="h-5 px-4 text-xs italic text-emerald-400">{typingText}</div>
 
-      <MessageComposer
-        onSend={send}
-        onSendFiles={sendFiles}
-        onTyping={notifyTyping}
-        onStopTyping={stopTyping}
-      />
+      <div className="pb-[env(safe-area-inset-bottom)]">
+        <MessageComposer
+          onSend={send}
+          onSendFiles={sendFiles}
+          onTyping={notifyTyping}
+          onStopTyping={stopTyping}
+        />
+      </div>
     </section>
   );
 }

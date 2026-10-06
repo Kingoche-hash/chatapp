@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+html {
+  color-scheme: dark;
+}
+
+/* A clear outline when moving around with the keyboard. */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible {
+  outline: 2px solid #34d399;
+  outline-offset: 2px;
+}
+
+/* People who asked their computer to reduce motion get no pulsing. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}
