@@ -5,7 +5,8 @@ import Sidebar from '../components/Sidebar';
 import { useConversations } from '../hooks/useConversations';
 import { useDeliveryReceipts } from '../hooks/useDeliveryReceipts';
 import { useMessageNotifications } from '../hooks/useMessageNotifications';
-import { startDirectConversation } from '../services/chat.service';
+import { createGroupConversation, startDirectConversation } from '../services/chat.service';
+import { getUnreadTotal } from '../utils/conversationFilters';
 
 export default function ChatPage() {
   const [activeId, setActiveId] = useState(null);
@@ -13,7 +14,8 @@ export default function ChatPage() {
   // Set when the person clicks a search result: which message to open the chat around.
   const [jump, setJump] = useState(null);
 
-  const { conversations, loading, error, addConversation, reload } = useConversations(activeId);
+  const { conversations, loading, error, addConversation, reload, updateState } =
+    useConversations(activeId);
 
   // Tells the server "delivered" for every incoming message, even in chats that are not open.
   useDeliveryReceipts();
@@ -38,6 +40,13 @@ export default function ChatPage() {
     setActiveId(conversation._id);
   };
 
+  const handleCreateGroup = async ({ name, memberIds }) => {
+    const conversation = await createGroupConversation({ name, memberIds });
+    addConversation(conversation);
+    setJump(null);
+    setActiveId(conversation._id);
+  };
+
   // "Try again" inside a chat: opening it afresh loads its messages again.
   const handleRetryMessages = () => {
     setJump({ conversationId: activeId, messageId: null, nonce: Date.now() });
@@ -47,7 +56,7 @@ export default function ChatPage() {
   useMessageNotifications({ conversations, activeId, onOpen: handleSelect });
 
   // The browser tab shows the number of unread messages, like "(3) CHATAPP".
-  const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  const totalUnread = getUnreadTotal(conversations);
 
   useEffect(() => {
     document.title = totalUnread > 0 ? `(${totalUnread}) CHATAPP` : 'CHATAPP';
@@ -71,7 +80,9 @@ export default function ChatPage() {
           activeId={activeId}
           onSelect={handleSelect}
           onStartChat={handleStartChat}
+          onCreateGroup={handleCreateGroup}
           onOpenResult={handleOpenResult}
+          onUpdateState={updateState}
           onRetry={reload}
         />
 
@@ -83,12 +94,14 @@ export default function ChatPage() {
               aroundId={aroundId}
               onBack={() => setActiveId(null)}
               onRetry={handleRetryMessages}
+              onUpdateState={(patch) => updateState(active._id, patch)}
+              onLeave={() => setActiveId(null)}
             />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-slate-500">
               <p className="text-5xl" aria-hidden="true">💬</p>
               <p className="font-medium text-slate-300">Welcome to CHATAPP</p>
-              <p className="text-sm">Select a conversation, or search for someone to start chatting.</p>
+              <p className="text-sm">Select a conversation, or press ✏️ New to start one.</p>
             </div>
           )}
         </main>

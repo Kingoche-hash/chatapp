@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { fetchConversations } from '../services/chat.service';
+import { fetchConversations, updateConversationStateRequest } from '../services/chat.service';
 import { getErrorMessage } from '../utils/getErrorMessage';
 import { useAuth } from './useAuth';
 import { useSocket } from './useSocket';
@@ -27,7 +27,7 @@ export const useConversations = (activeId = null) => {
     activeIdRef.current = activeId;
   }, [activeId]);
 
-  // Load the list (again, when the person clicks "Retry").
+  // Load the list (again, when the person clicks "Try again").
   useEffect(() => {
     let cancelled = false;
 
@@ -76,8 +76,12 @@ export const useConversations = (activeId = null) => {
 
             const unread = c.unreadCount ?? 0;
 
+            // A new message brings a deleted chat back into the list.
+            const state = c.state?.deletedAt ? { ...c.state, deletedAt: null } : c.state;
+
             return {
               ...c,
+              state,
               lastMessage: message,
               lastMessageAt: message.createdAt,
               unreadCount: fromMe || looking ? unread : unread + 1,
@@ -102,14 +106,21 @@ export const useConversations = (activeId = null) => {
       );
     };
 
+    // My private settings for a chat changed (maybe in another of my windows).
+    const handleState = ({ conversationId, state }) => {
+      setConversations((prev) => prev.map((c) => (c._id === conversationId ? { ...c, state } : c)));
+    };
+
     socket.on('receive_message', handleMessage);
     socket.on('conversation_created', handleCreated);
     socket.on('messages_read', handleRead);
+    socket.on('conversation_state', handleState);
 
     return () => {
       socket.off('receive_message', handleMessage);
       socket.off('conversation_created', handleCreated);
       socket.off('messages_read', handleRead);
+      socket.off('conversation_state', handleState);
     };
   }, [socket, myId]);
 
@@ -117,5 +128,12 @@ export const useConversations = (activeId = null) => {
     setConversations((prev) => addIfMissing(prev, conversation));
   }, []);
 
-  return { conversations, loading, error, addConversation, reload };
+  // patch: { pinned, muted, spam, deleted, wallpaper } (any of them).
+  const updateState = useCallback(async (conversationId, patch) => {
+    const state = await updateConversationStateRequest(conversationId, patch);
+
+    setConversations((prev) => prev.map((c) => (c._id === conversationId ? { ...c, state } : c)));
+  }, []);
+
+  return { conversations, loading, error, addConversation, reload, updateState };
 };

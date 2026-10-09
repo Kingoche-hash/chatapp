@@ -3,6 +3,7 @@ import {
   createConversation,
   getMyConversations,
   getConversationById,
+  updateConversationState,
 } from '../controllers/conversation.controller.js';
 import { sendMessage, getConversationMessages } from '../controllers/message.controller.js';
 import { sendMessageWithFiles } from '../controllers/attachment.controller.js';
@@ -18,6 +19,7 @@ import {
   messageQuerySchema,
 } from '../validators/conversation.validators.js';
 import { captionSchema } from '../validators/attachment.validators.js';
+import { stateUpdateSchema } from '../validators/state.validators.js';
 
 const router = Router();
 
@@ -27,6 +29,14 @@ router.post('/', validate(createConversationSchema), createConversation);
 router.get('/', getMyConversations);
 
 router.get('/:conversationId', validate(conversationIdParams, 'params'), getConversationById);
+
+// My private settings for this chat (pin, mute, spam, delete, wallpaper).
+router.patch(
+  '/:conversationId/state',
+  validate(conversationIdParams, 'params'),
+  validate(stateUpdateSchema),
+  updateConversationState
+);
 
 router.get(
   '/:conversationId/messages',

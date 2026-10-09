@@ -2,20 +2,32 @@ import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { usePresence } from '../hooks/usePresence';
 import { useSocket } from '../hooks/useSocket';
+import { useToast } from '../hooks/useToast';
 import { useTyping } from '../hooks/useTyping';
 import { getConversationTitle, getOtherMember } from '../utils/conversation';
+import { applyFilter, getFilterCounts, getState, isMuted } from '../utils/conversationFilters';
+import { formatDayLabel } from '../utils/formatDay';
 import { formatTime } from '../utils/formatTime';
 import { formatTyping } from '../utils/formatTyping';
 import { getMessagePreview } from '../utils/messagePreview';
 import Avatar from './Avatar';
+import FilterMenu from './FilterMenu';
+import NewChatDialog from './NewChatDialog';
 import SearchPanel from './SearchPanel';
 import { ConversationListSkeleton } from './Skeleton';
-import UserSearch from './UserSearch';
 
 const tabClass = (selected) =>
   `flex-1 py-2 text-sm font-medium ${
     selected ? 'border-b-2 border-emerald-400 text-white' : 'text-slate-400 hover:text-slate-200'
   }`;
+
+const EMPTY_MESSAGES = {
+  all: { icon: '💬', title: 'No conversations yet', text: 'Press ✏️ New above to start one.' },
+  unread: { icon: '✅', title: "You're all caught up", text: 'No unread messages.' },
+  groups: { icon: '👥', title: 'No groups yet', text: 'Press ✏️ New and choose New group.' },
+  spam: { icon: '🚫', title: 'No spam', text: 'Chats you report as spam appear here.' },
+  deleted: { icon: '🗑️', title: 'Nothing deleted', text: 'Deleted chats stay here for 30 days.' },
+};
 
 export default function Sidebar({
   conversations,
@@ -25,7 +37,9 @@ export default function Sidebar({
   activeId,
   onSelect,
   onStartChat,
+  onCreateGroup,
   onOpenResult,
+  onUpdateState,
   onRetry,
   className = '',
 }) {
@@ -33,8 +47,11 @@ export default function Sidebar({
   const { connected } = useSocket();
   const { isOnline } = usePresence();
   const { getTypingNames } = useTyping();
+  const { showToast } = useToast();
 
   const [tab, setTab] = useState('chats');
+  const [filter, setFilter] = useState('all');
+  const [showNewChat, setShowNewChat] = useState(false);
 
   // Desktop notifications need the person's permission first.
   const [permission, setPermission] = useState(() =>
@@ -43,6 +60,23 @@ export default function Sidebar({
 
   const enableNotifications = async () => {
     setPermission(await Notification.requestPermission());
+  };
+
+  const visible = applyFilter(conversations, filter);
+  const counts = getFilterCounts(conversations);
+  const empty = EMPTY_MESSAGES[filter];
+
+  // The small button at the right of a row, in the Spam and Recently deleted views.
+  let rowAction = null;
+  if (filter === 'deleted') rowAction = { label: 'Recover', patch: { deleted: false } };
+  if (filter === 'spam') rowAction = { label: 'Not spam', patch: { spam: false } };
+
+  const runAction = async (conversationId, patch) => {
+    try {
+      await onUpdateState(conversationId, patch);
+    } catch {
+      showToast({ title: 'Could not save the change', text: 'Please try again.' });
+    }
   };
 
   return (
@@ -99,7 +133,18 @@ export default function Sidebar({
         />
       ) : (
         <>
-          <UserSearch onPick={onStartChat} />
+          <div className="flex items-center justify-between border-b border-slate-700 px-3 py-2">
+            <FilterMenu value={filter} onChange={setFilter} counts={counts} />
+            <button
+              type="button"
+              onClick={() => setShowNewChat(true)}
+              aria-label="New chat"
+              title="New chat or group"
+              className="rounded-lg bg-emerald-600 px-3 py-1 text-sm font-semibold hover:bg-emerald-500"
+            >
+              ✏️ New
+            </button>
+          </div>
 
           {loading && <ConversationListSkeleton />}
 
@@ -116,27 +161,32 @@ export default function Sidebar({
             </div>
           )}
 
-          {!loading && !error && conversations.length === 0 && (
+          {!loading && !error && visible.length === 0 && (
             <div className="px-6 py-10 text-center text-sm text-slate-500">
-              <p className="text-3xl" aria-hidden="true">💬</p>
-              <p className="mt-2 font-medium text-slate-300">No conversations yet</p>
-              <p className="mt-1">Search for someone above to start one.</p>
+              <p className="text-3xl" aria-hidden="true">{empty.icon}</p>
+              <p className="mt-2 font-medium text-slate-300">{empty.title}</p>
+              <p className="mt-1">{empty.text}</p>
             </div>
           )}
 
           <ul className="flex-1 overflow-y-auto">
-            {conversations.map((conversation) => {
+            {visible.map((conversation) => {
               const other =
                 conversation.type === 'direct' ? getOtherMember(conversation, user._id) : null;
               const title = getConversationTitle(conversation, user._id);
               const typingText = formatTyping(getTypingNames(conversation._id));
               const unread = conversation.unreadCount || 0;
+              const state = getState(conversation);
+              const muted = isMuted(conversation);
 
               return (
-                <li key={conversation._id}>
+                <li
+                  key={conversation._id}
+                  className="flex items-center border-b border-slate-700/50 hover:bg-slate-700/60"
+                >
                   <button
                     onClick={() => onSelect(conversation._id)}
-                    className={`flex w-full items-center gap-3 border-b border-slate-700/50 px-4 py-3 text-left hover:bg-slate-700/60 ${
+                    className={`flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left ${
                       conversation._id === activeId ? 'bg-slate-700' : ''
                     }`}
                   >
@@ -146,6 +196,8 @@ export default function Sidebar({
                       <span className="flex items-baseline justify-between gap-2">
                         <span className={`truncate ${unread > 0 ? 'font-semibold' : 'font-medium'}`}>
                           {title}
+                          {state.pinned && <span aria-label="Pinned"> 📌</span>}
+                          {muted && <span aria-label="Muted"> 🔕</span>}
                         </span>
                         {conversation.lastMessage && (
                           <span className="shrink-0 text-xs text-slate-400">
@@ -155,7 +207,11 @@ export default function Sidebar({
                       </span>
 
                       <span className="mt-0.5 flex items-center justify-between gap-2">
-                        {typingText ? (
+                        {filter === 'deleted' && state.deletedAt ? (
+                          <span className="block truncate text-sm text-slate-400">
+                            Deleted {formatDayLabel(state.deletedAt)}
+                          </span>
+                        ) : typingText ? (
                           <span className="block truncate text-sm italic text-emerald-400">
                             {typingText}
                           </span>
@@ -169,10 +225,12 @@ export default function Sidebar({
                           </span>
                         )}
 
-                        {unread > 0 && (
+                        {unread > 0 && filter !== 'deleted' && (
                           <span
                             aria-label={`${unread} unread messages`}
-                            className="shrink-0 rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-semibold text-white"
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold text-white ${
+                              muted ? 'bg-slate-600' : 'bg-emerald-500'
+                            }`}
                           >
                             {unread > 99 ? '99+' : unread}
                           </span>
@@ -180,11 +238,29 @@ export default function Sidebar({
                       </span>
                     </span>
                   </button>
+
+                  {rowAction && (
+                    <button
+                      type="button"
+                      onClick={() => runAction(conversation._id, rowAction.patch)}
+                      className="mr-3 shrink-0 rounded-lg bg-slate-700 px-3 py-1 text-xs font-medium text-emerald-300 hover:bg-slate-600"
+                    >
+                      {rowAction.label}
+                    </button>
+                  )}
                 </li>
               );
             })}
           </ul>
         </>
+      )}
+
+      {showNewChat && (
+        <NewChatDialog
+          onClose={() => setShowNewChat(false)}
+          onStartChat={onStartChat}
+          onCreateGroup={onCreateGroup}
+        />
       )}
     </aside>
   );

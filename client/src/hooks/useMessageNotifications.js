@@ -1,11 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { getConversationTitle } from '../utils/conversation';
+import { getState, isMuted } from '../utils/conversationFilters';
 import { getMessagePreview } from '../utils/messagePreview';
 import { useAuth } from './useAuth';
 import { useSocket } from './useSocket';
 import { useToast } from './useToast';
 
-// For messages in chats you are NOT looking at:
+// For messages in chats you are NOT looking at (and have not muted or marked as spam):
 //   page visible -> a pop-up in the corner
 //   page hidden  -> a desktop notification (only if you allowed them)
 export const useMessageNotifications = ({ conversations, activeId, onOpen }) => {
@@ -38,6 +39,10 @@ export const useMessageNotifications = ({ conversations, activeId, onOpen }) => 
       if (looking) return;
 
       const conversation = chats.find((chat) => chat._id === message.conversation);
+
+      // Muted chats and spam stay quiet.
+      if (conversation && (isMuted(conversation) || getState(conversation).spam)) return;
+
       const title = conversation ? getConversationTitle(conversation, myId) : message.sender.username;
       const preview = getMessagePreview(message);
       const text = conversation?.type === 'group' ? `${message.sender.username}: ${preview}` : preview;

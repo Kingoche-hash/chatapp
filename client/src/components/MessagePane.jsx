@@ -6,18 +6,28 @@ import { useReadReceipts } from '../hooks/useReadReceipts';
 import { useTyping } from '../hooks/useTyping';
 import { useTypingEmitter } from '../hooks/useTypingEmitter';
 import { getConversationTitle, getOtherMember } from '../utils/conversation';
+import { getState, isMuted } from '../utils/conversationFilters';
 import { dayKey, formatDayLabel } from '../utils/formatDay';
 import { formatLastSeen } from '../utils/formatLastSeen';
 import { formatTime } from '../utils/formatTime';
 import { formatTyping } from '../utils/formatTyping';
 import { getMessageStatus } from '../utils/messageStatus';
+import { getWallpaperStyle } from '../utils/wallpapers';
 import AttachmentList from './AttachmentList';
 import Avatar from './Avatar';
+import ChatMenu from './ChatMenu';
 import MessageComposer from './MessageComposer';
 import MessageStatus from './MessageStatus';
 import { MessageListSkeleton } from './Skeleton';
 
-export default function MessagePane({ conversation, onBack, onRetry, aroundId = null }) {
+export default function MessagePane({
+  conversation,
+  onBack,
+  onRetry,
+  onUpdateState,
+  onLeave,
+  aroundId = null,
+}) {
   const { user } = useAuth();
   const { isOnline, getLastSeen } = usePresence();
   const { getTypingNames } = useTyping();
@@ -73,6 +83,8 @@ export default function MessagePane({ conversation, onBack, onRetry, aroundId = 
 
   const title = getConversationTitle(conversation, user._id);
   const typingText = formatTyping(getTypingNames(conversation._id));
+  const state = getState(conversation);
+  const muted = isMuted(conversation);
 
   // The line under the title: "Online", "Last seen ...", or "3 members, 2 online".
   let status = '';
@@ -97,7 +109,7 @@ export default function MessagePane({ conversation, onBack, onRetry, aroundId = 
 
   return (
     <section className="flex min-h-0 flex-1 flex-col min-w-0">
-      <header className="flex items-center gap-3 border-b border-slate-700 px-4 py-3">
+      <header className="flex items-center gap-3 border-b border-slate-700 bg-slate-900 px-4 py-3">
         <button
           onClick={onBack}
           aria-label="Back to conversations"
@@ -107,16 +119,30 @@ export default function MessagePane({ conversation, onBack, onRetry, aroundId = 
         </button>
         <Avatar name={title} online={headerOnline} />
         <div className="min-w-0">
-          <h2 className="font-semibold truncate">{title}</h2>
+          <h2 className="truncate font-semibold">
+            {title}
+            {state.pinned && <span aria-label="Pinned"> 📌</span>}
+            {muted && <span aria-label="Muted"> 🔕</span>}
+          </h2>
           {status && (
             <p className={`text-xs ${statusIsOnline ? 'text-emerald-400' : 'text-slate-400'}`}>
               {status}
             </p>
           )}
         </div>
+
+        <ChatMenu
+          conversation={conversation}
+          currentUserId={user._id}
+          onUpdate={onUpdateState}
+          onLeave={onLeave}
+        />
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+      <div
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-2"
+        style={getWallpaperStyle(state.wallpaper)}
+      >
         {hasMore && (
           <div className="text-center">
             <button
@@ -215,9 +241,9 @@ export default function MessagePane({ conversation, onBack, onRetry, aroundId = 
         </div>
       )}
 
-      <div className="h-5 px-4 text-xs italic text-emerald-400">{typingText}</div>
+      <div className="h-5 bg-slate-900 px-4 text-xs italic text-emerald-400">{typingText}</div>
 
-      <div className="pb-[env(safe-area-inset-bottom)]">
+      <div className="bg-slate-900 pb-[env(safe-area-inset-bottom)]">
         <MessageComposer
           onSend={send}
           onSendFiles={sendFiles}

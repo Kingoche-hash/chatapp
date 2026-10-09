@@ -3,8 +3,10 @@ import {
   createGroupConversation,
   listConversations,
   getConversation,
+  getConversationForMember,
 } from '../services/conversation.service.js';
-import { announceConversation } from '../socket/emitters.js';
+import { updateState } from '../services/conversationState.service.js';
+import { announceConversation, emitConversationState } from '../socket/emitters.js';
 
 export const createConversation = async (req, res) => {
   const body = req.body;
@@ -28,4 +30,16 @@ export const getMyConversations = async (req, res) => {
 export const getConversationById = async (req, res) => {
   const conversation = await getConversation(req.params.conversationId, req.user._id);
   res.status(200).json({ conversation });
+};
+
+// Changes MY private settings for a chat (pin, mute, spam, delete, wallpaper).
+export const updateConversationState = async (req, res) => {
+  await getConversationForMember(req.params.conversationId, req.user._id);
+
+  const state = await updateState(req.user._id, req.params.conversationId, req.body);
+
+  // Tell my other open windows, so they stay in sync.
+  emitConversationState(req.user._id, req.params.conversationId, state);
+
+  res.status(200).json({ state });
 };

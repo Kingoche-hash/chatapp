@@ -32,4 +32,18 @@ messageSchema.index({ conversation: 1, _id: -1 });
 // so it works the same for English, Lithuanian and any other language.
 messageSchema.index({ content: 'text' }, { default_language: 'none' });
 
+// A new message brings a deleted chat back into everyone's list.
+messageSchema.post('save', async function (message) {
+  try {
+    await mongoose
+      .model('ConversationState')
+      .updateMany(
+        { conversation: message.conversation, deletedAt: { $ne: null } },
+        { deletedAt: null }
+      );
+  } catch (error) {
+    console.error('Could not restore deleted chats:', error.message);
+  }
+});
+
 export default mongoose.model('Message', messageSchema);

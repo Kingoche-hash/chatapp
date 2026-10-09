@@ -2,6 +2,7 @@ import Conversation from '../models/Conversation.js';
 import Message from '../models/Message.js';
 import User from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
+import { DEFAULT_STATE, getStatesById } from './conversationState.service.js';
 
 const MEMBER_FIELDS = 'username avatar isOnline lastSeen';
 
@@ -78,7 +79,7 @@ export const createGroupConversation = async (currentUserId, { name, memberIds }
   return populateConversation(Conversation.findById(conversation._id));
 };
 
-// My conversations, newest first, each with the number of messages I have not read yet.
+// My conversations, newest first. Each has my unread count and my private settings (pinned, muted...).
 export const listConversations = async (userId) => {
   const conversations = await populateConversation(
     Conversation.find({ members: userId }).sort({ lastMessageAt: -1 })
@@ -86,23 +87,33 @@ export const listConversations = async (userId) => {
 
   if (conversations.length === 0) return [];
 
-  const counts = await Message.aggregate([
-    {
-      $match: {
-        conversation: { $in: conversations.map((conversation) => conversation._id) },
-        sender: { $ne: userId },
-        readBy: { $ne: userId },
+  const ids = conversations.map((conversation) => conversation._id);
+
+  const [counts, states] = await Promise.all([
+    Message.aggregate([
+      {
+        $match: {
+          conversation: { $in: ids },
+          sender: { $ne: userId },
+          readBy: { $ne: userId },
+        },
       },
-    },
-    { $group: { _id: '$conversation', count: { $sum: 1 } } },
+      { $group: { _id: '$conversation', count: { $sum: 1 } } },
+    ]),
+    getStatesById(userId, ids),
   ]);
 
   const unreadById = new Map(counts.map((item) => [item._id.toString(), item.count]));
 
-  return conversations.map((conversation) => ({
-    ...conversation.toJSON(),
-    unreadCount: unreadById.get(conversation._id.toString()) ?? 0,
-  }));
+  return conversations.map((conversation) => {
+    const id = conversation._id.toString();
+
+    return {
+      ...conversation.toJSON(),
+      unreadCount: unreadById.get(id) ?? 0,
+      state: states.get(id) ?? { ...DEFAULT_STATE },
+    };
+  });
 };
 
 export const getConversation = async (conversationId, userId) => {

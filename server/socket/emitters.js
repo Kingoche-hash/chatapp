@@ -27,3 +27,14 @@ export const announceConversation = (conversation) => {
     io.to(userRoom(member._id)).emit('conversation_created', plain);
   }
 };
+
+// Tell ONE person's open windows that their private settings for a chat changed.
+export const emitConversationState = (userId, conversationId, state) => {
+  const io = getIO();
+  if (!io) return;
+
+  io.to(userRoom(userId.toString())).emit('conversation_state', {
+    conversationId: conversationId.toString(),
+    state: toPlain(state),
+  });
+};
