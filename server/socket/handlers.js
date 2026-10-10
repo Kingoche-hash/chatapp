@@ -2,6 +2,7 @@ import { conversationIdParams, sendMessageSchema } from '../validators/conversat
 import { receiptSchema } from '../validators/receipt.validators.js';
 import { createMessage, markDelivered, markRead } from '../services/message.service.js';
 import { getConversationForMember } from '../services/conversation.service.js';
+import { getPrivacy } from '../services/privacyCache.js';
 import { filterOnline, getContactIds } from '../services/presence.service.js';
 import { AppError } from '../utils/AppError.js';
 import { createSocketLimiter } from '../utils/socketRateLimit.js';
@@ -36,7 +37,7 @@ const handle = (handler) => async (payload, ack) => {
 
 export const registerHandlers = (io, socket) => {
   const userId = socket.data.user._id;
-  const username = socket.data.user.username;
+  const username = socket.data.user.displayName || socket.data.user.username;
 
   const canSend = createSocketLimiter({ limit: 20, windowMs: 10000 });
   const canType = createSocketLimiter({ limit: 60, windowMs: 10000 });
@@ -81,12 +82,14 @@ export const registerHandlers = (io, socket) => {
     })
   );
 
-  // "Who is online right now?" Answers only about people the user shares a chat with.
+  // "Who is online right now?" Only people the user shares a chat with, and not those who hide it.
   socket.on(
     'get_presence',
     handle(async () => {
       const contactIds = await getContactIds(userId);
-      const onlineUserIds = await filterOnline(contactIds);
+      const online = await filterOnline(contactIds);
+      const onlineUserIds = online.filter((id) => getPrivacy(id).showPresence);
+
       return { onlineUserIds };
     })
   );
@@ -94,6 +97,9 @@ export const registerHandlers = (io, socket) => {
   // Typing: a whisper to the other members of the room. Never stored anywhere.
   const relayTyping = (event) => (payload) => {
     if (!canType()) return;
+
+    // People who turned typing indicators off never send the whisper.
+    if (event === 'typing_start' && !getPrivacy(userId).typingIndicators) return;
 
     const result = conversationIdParams.safeParse(payload);
     if (!result.success) return;

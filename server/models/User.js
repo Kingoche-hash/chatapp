@@ -11,6 +11,7 @@ const userSchema = new mongoose.Schema(
       minlength: 3,
       maxlength: 30,
     },
+    displayName: { type: String, trim: true, maxlength: 40, default: '' },
     email: {
       type: String,
       required: true,
@@ -24,8 +25,17 @@ const userSchema = new mongoose.Schema(
       select: false,
     },
     avatar: { type: String, default: '' },
+    avatarPublicId: { type: String, default: '', select: false },
+    bio: { type: String, trim: true, maxlength: 160, default: '' },
+    status: { type: String, trim: true, maxlength: 60, default: 'Available' },
+    privacy: {
+      showPresence: { type: Boolean, default: true },
+      readReceipts: { type: Boolean, default: true },
+      typingIndicators: { type: Boolean, default: true },
+    },
     isOnline: { type: Boolean, default: false },
     lastSeen: { type: Date, default: null },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );
@@ -42,6 +52,7 @@ userSchema.methods.comparePassword = function (candidate) {
 userSchema.set('toJSON', {
   transform: (doc, ret) => {
     delete ret.password;
+    delete ret.avatarPublicId;
     delete ret.__v;
     return ret;
   },

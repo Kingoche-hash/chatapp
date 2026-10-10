@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { searchUsersRequest } from '../services/chat.service';
+import { getDisplayName } from '../utils/conversation';
 import { getErrorMessage } from '../utils/getErrorMessage';
 import Avatar from './Avatar';
 import Modal from './Modal';
@@ -104,11 +105,11 @@ export default function NewChatDialog({ onClose, onStartChat, onCreateGroup }) {
         <ul className="mb-3 flex flex-wrap gap-2">
           {selected.map((person) => (
             <li key={person._id} className="flex items-center gap-1 rounded-full bg-slate-700 py-1 pl-3 pr-2 text-xs">
-              {person.username}
+              {getDisplayName(person)}
               <button
                 type="button"
                 onClick={() => toggle(person)}
-                aria-label={`Remove ${person.username}`}
+                aria-label={`Remove ${getDisplayName(person)}`}
                 className="text-slate-400 hover:text-white"
               >
                 ✕
@@ -123,12 +124,12 @@ export default function NewChatDialog({ onClose, onStartChat, onCreateGroup }) {
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search people by username"
+        placeholder="Search people by name or username"
         aria-label="Search people"
         className="w-full rounded-lg bg-slate-700 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
       />
 
-      {!term && <p className="mt-3 text-sm text-slate-500">Type a username to find people.</p>}
+      {!term && <p className="mt-3 text-sm text-slate-500">Type a name or username to find people.</p>}
 
       {term && (
         <ul className="mt-3 max-h-60 overflow-y-auto rounded-lg bg-slate-700/50">
@@ -149,8 +150,11 @@ export default function NewChatDialog({ onClose, onStartChat, onCreateGroup }) {
                   onClick={() => handlePick(person)}
                   className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-slate-700 disabled:opacity-60"
                 >
-                  <Avatar name={person.username} size="sm" />
-                  <span className="flex-1 truncate">{person.username}</span>
+                  <Avatar name={getDisplayName(person)} src={person.avatar} size="sm" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{getDisplayName(person)}</span>
+                    <span className="block truncate text-xs text-slate-400">@{person.username}</span>
+                  </span>
                   {mode === 'group' && picked && <span aria-hidden="true">✓</span>}
                 </button>
               </li>

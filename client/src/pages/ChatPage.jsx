@@ -96,6 +96,7 @@ export default function ChatPage() {
               onRetry={handleRetryMessages}
               onUpdateState={(patch) => updateState(active._id, patch)}
               onLeave={() => setActiveId(null)}
+              onStartChat={handleStartChat}
             />
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-slate-500">

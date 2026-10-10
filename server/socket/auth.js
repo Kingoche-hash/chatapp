@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import Conversation from '../models/Conversation.js';
+import { pickPrivacy, setPrivacy } from '../services/privacyCache.js';
 import { verifyToken } from '../utils/token.js';
 
 // Runs once for every new phone line, before it is allowed to connect.
@@ -13,13 +14,17 @@ export const authenticateSocket = async (socket, next) => {
     }
 
     const payload = verifyToken(token);
-    const user = await User.findById(payload.sub).select('username avatar');
+    const user = await User.findById(payload.sub).select(
+      'username displayName avatar privacy deletedAt'
+    );
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return next(new Error('Not authenticated'));
     }
 
     const conversations = await Conversation.find({ members: user._id }).select('_id').lean();
+
+    setPrivacy(user._id, pickPrivacy(user));
 
     socket.data.user = user;
     socket.data.conversationIds = conversations.map((c) => c._id.toString());

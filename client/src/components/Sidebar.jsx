@@ -4,7 +4,7 @@ import { usePresence } from '../hooks/usePresence';
 import { useSocket } from '../hooks/useSocket';
 import { useToast } from '../hooks/useToast';
 import { useTyping } from '../hooks/useTyping';
-import { getConversationTitle, getOtherMember } from '../utils/conversation';
+import { getConversationTitle, getDisplayName, getOtherMember } from '../utils/conversation';
 import { applyFilter, getFilterCounts, getState, isMuted } from '../utils/conversationFilters';
 import { formatDayLabel } from '../utils/formatDay';
 import { formatTime } from '../utils/formatTime';
@@ -13,6 +13,7 @@ import { getMessagePreview } from '../utils/messagePreview';
 import Avatar from './Avatar';
 import FilterMenu from './FilterMenu';
 import NewChatDialog from './NewChatDialog';
+import ProfileDialog from './ProfileDialog';
 import SearchPanel from './SearchPanel';
 import { ConversationListSkeleton } from './Skeleton';
 
@@ -52,6 +53,7 @@ export default function Sidebar({
   const [tab, setTab] = useState('chats');
   const [filter, setFilter] = useState('all');
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   // Desktop notifications need the person's permission first.
   const [permission, setPermission] = useState(() =>
@@ -84,20 +86,25 @@ export default function Sidebar({
       className={`${className} w-full md:w-80 shrink-0 flex-col border-r border-slate-700 bg-slate-800`}
     >
       <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={user.username} size="sm" />
-          <div className="min-w-0">
-            <p className="truncate font-semibold">{user.username}</p>
-            <p className="flex items-center gap-1 text-xs text-slate-400">
+        <button
+          type="button"
+          onClick={() => setShowProfile(true)}
+          aria-label="Open your profile"
+          className="flex min-w-0 items-center gap-3 rounded-lg text-left"
+        >
+          <Avatar name={getDisplayName(user)} src={user.avatar} size="sm" />
+          <span className="min-w-0">
+            <span className="block truncate font-semibold">{getDisplayName(user)}</span>
+            <span className="flex items-center gap-1 text-xs text-slate-400">
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
                   connected ? 'bg-emerald-400' : 'bg-amber-400'
                 }`}
               />
               {connected ? 'Live' : 'Connecting...'}
-            </p>
-          </div>
-        </div>
+            </span>
+          </span>
+        </button>
         <button
           onClick={logout}
           className="rounded-lg bg-slate-700 px-3 py-1 text-sm hover:bg-slate-600"
@@ -190,7 +197,11 @@ export default function Sidebar({
                       conversation._id === activeId ? 'bg-slate-700' : ''
                     }`}
                   >
-                    <Avatar name={title} online={other ? isOnline(other._id) : null} />
+                    <Avatar
+                      name={title}
+                      src={other?.avatar}
+                      online={other ? isOnline(other._id) : null}
+                    />
 
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline justify-between gap-2">
@@ -262,6 +273,8 @@ export default function Sidebar({
           onCreateGroup={onCreateGroup}
         />
       )}
+
+      {showProfile && <ProfileDialog onClose={() => setShowProfile(false)} />}
     </aside>
   );
 }

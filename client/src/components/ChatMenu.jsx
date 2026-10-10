@@ -1,10 +1,12 @@
 import { useRef, useState } from 'react';
 import { useClickOutside } from '../hooks/useClickOutside';
 import { useToast } from '../hooks/useToast';
+import { getDisplayName } from '../utils/conversation';
 import { getState, isMuted } from '../utils/conversationFilters';
 import Avatar from './Avatar';
 import ConfirmDialog from './confirmDialog';
 import Modal from './Modal';
+import UserProfileDialog from './UserProfileDialog';
 import WallpaperPicker from './WallpaperPicker';
 
 function MenuItem({ icon, onClick, danger = false, children }) {
@@ -26,7 +28,7 @@ function MenuItem({ icon, onClick, danger = false, children }) {
 }
 
 // The "..." menu at the top right of a chat.
-export default function ChatMenu({ conversation, currentUserId, onUpdate, onLeave }) {
+export default function ChatMenu({ conversation, currentUserId, onUpdate, onLeave, onStartChat }) {
   const { showToast } = useToast();
 
   const state = getState(conversation);
@@ -34,6 +36,7 @@ export default function ChatMenu({ conversation, currentUserId, onUpdate, onLeav
 
   const [open, setOpen] = useState(false);
   const [dialog, setDialog] = useState(null); // 'delete' | 'wallpaper' | 'members' | null
+  const [profileId, setProfileId] = useState(null);
   const menuRef = useRef(null);
 
   useClickOutside(menuRef, () => setOpen(false), open);
@@ -151,18 +154,35 @@ export default function ChatMenu({ conversation, currentUserId, onUpdate, onLeav
 
       {dialog === 'members' && (
         <Modal title={`Members (${conversation.members.length})`} onClose={() => setDialog(null)}>
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {conversation.members.map((member) => (
-              <li key={member._id} className="flex items-center gap-3">
-                <Avatar name={member.username} size="sm" />
-                <span className="truncate">
-                  {member.username}
-                  {member._id === currentUserId && <span className="text-slate-400"> (you)</span>}
-                </span>
+              <li key={member._id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDialog(null);
+                    setProfileId(member._id);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-slate-700"
+                >
+                  <Avatar name={getDisplayName(member)} src={member.avatar} size="sm" />
+                  <span className="truncate">
+                    {getDisplayName(member)}
+                    {member._id === currentUserId && <span className="text-slate-400"> (you)</span>}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
         </Modal>
+      )}
+
+      {profileId && (
+        <UserProfileDialog
+          userId={profileId}
+          onClose={() => setProfileId(null)}
+          onMessage={onStartChat}
+        />
       )}
     </div>
   );

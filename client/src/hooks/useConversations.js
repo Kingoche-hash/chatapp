@@ -111,16 +111,30 @@ export const useConversations = (activeId = null) => {
       setConversations((prev) => prev.map((c) => (c._id === conversationId ? { ...c, state } : c)));
     };
 
+    // Someone changed their name or photo: update them in every chat they are part of.
+    const handleProfile = ({ userId, username, displayName, avatar }) => {
+      setConversations((prev) =>
+        prev.map((c) => ({
+          ...c,
+          members: c.members.map((member) =>
+            member._id === userId ? { ...member, username, displayName, avatar } : member
+          ),
+        }))
+      );
+    };
+
     socket.on('receive_message', handleMessage);
     socket.on('conversation_created', handleCreated);
     socket.on('messages_read', handleRead);
     socket.on('conversation_state', handleState);
+    socket.on('profile_updated', handleProfile);
 
     return () => {
       socket.off('receive_message', handleMessage);
       socket.off('conversation_created', handleCreated);
       socket.off('messages_read', handleRead);
       socket.off('conversation_state', handleState);
+      socket.off('profile_updated', handleProfile);
     };
   }, [socket, myId]);
 

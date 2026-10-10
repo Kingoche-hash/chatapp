@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthContext } from './authContext';
-import { getMeRequest, loginRequest, registerRequest } from '../services/auth.Service';
+import { getMeRequest, loginRequest, registerRequest } from '../services/auth.service';
 import { clearToken, getToken, setToken } from '../services/tokenStorage';
 
 export default function AuthProvider({ children }) {
@@ -51,9 +51,14 @@ export default function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // After the person edits their profile, keep the new details everywhere.
+  const updateUser = useCallback((nextUser) => {
+    setUser(nextUser);
+  }, []);
+
   const value = useMemo(
-    () => ({ user, loading, login, register, logout }),
-    [user, loading, login, register, logout]
+    () => ({ user, loading, login, register, logout, updateUser }),
+    [user, loading, login, register, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

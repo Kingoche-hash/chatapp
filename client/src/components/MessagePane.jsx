@@ -5,7 +5,7 @@ import { usePresence } from '../hooks/usePresence';
 import { useReadReceipts } from '../hooks/useReadReceipts';
 import { useTyping } from '../hooks/useTyping';
 import { useTypingEmitter } from '../hooks/useTypingEmitter';
-import { getConversationTitle, getOtherMember } from '../utils/conversation';
+import { getConversationTitle, getDisplayName, getOtherMember } from '../utils/conversation';
 import { getState, isMuted } from '../utils/conversationFilters';
 import { dayKey, formatDayLabel } from '../utils/formatDay';
 import { formatLastSeen } from '../utils/formatLastSeen';
@@ -19,6 +19,7 @@ import ChatMenu from './ChatMenu';
 import MessageComposer from './MessageComposer';
 import MessageStatus from './MessageStatus';
 import { MessageListSkeleton } from './Skeleton';
+import UserProfileDialog from './UserProfileDialog';
 
 export default function MessagePane({
   conversation,
@@ -26,6 +27,7 @@ export default function MessagePane({
   onRetry,
   onUpdateState,
   onLeave,
+  onStartChat,
   aroundId = null,
 }) {
   const { user } = useAuth();
@@ -53,6 +55,8 @@ export default function MessagePane({
   const bottomRef = useRef(null);
   const jumpedRef = useRef(false);
   const lastId = messages.at(-1)?._id;
+
+  const [showProfile, setShowProfile] = useState(false);
 
   // The message we jumped to glows for a few seconds.
   const [highlightId, setHighlightId] = useState(aroundId);
@@ -85,21 +89,23 @@ export default function MessagePane({
   const typingText = formatTyping(getTypingNames(conversation._id));
   const state = getState(conversation);
   const muted = isMuted(conversation);
+  const other = conversation.type === 'direct' ? getOtherMember(conversation, user._id) : null;
 
   // The line under the title: "Online", "Last seen ...", or "3 members, 2 online".
   let status = '';
   let statusIsOnline = false;
   let headerOnline = null;
 
-  if (conversation.type === 'direct') {
-    const other = getOtherMember(conversation, user._id);
-
-    if (other) {
+  if (other) {
+    if (other.privacy?.showPresence === false) {
+      // This person hides it, so we show nothing.
+      status = '';
+    } else {
       statusIsOnline = isOnline(other._id);
       headerOnline = statusIsOnline;
       status = statusIsOnline ? 'Online' : formatLastSeen(getLastSeen(other));
     }
-  } else {
+  } else if (conversation.type === 'group') {
     const onlineCount = conversation.members.filter(
       (member) => member._id === user._id || isOnline(member._id)
     ).length;
@@ -117,25 +123,35 @@ export default function MessagePane({
         >
           ←
         </button>
-        <Avatar name={title} online={headerOnline} />
-        <div className="min-w-0">
-          <h2 className="truncate font-semibold">
-            {title}
-            {state.pinned && <span aria-label="Pinned"> 📌</span>}
-            {muted && <span aria-label="Muted"> 🔕</span>}
-          </h2>
-          {status && (
-            <p className={`text-xs ${statusIsOnline ? 'text-emerald-400' : 'text-slate-400'}`}>
-              {status}
-            </p>
-          )}
-        </div>
+
+        <button
+          type="button"
+          disabled={!other}
+          onClick={() => setShowProfile(true)}
+          aria-label={other ? `Open ${title}'s profile` : title}
+          className="flex min-w-0 items-center gap-3 rounded-lg text-left disabled:cursor-default"
+        >
+          <Avatar name={title} src={other?.avatar} online={headerOnline} />
+          <span className="min-w-0">
+            <span className="block truncate font-semibold">
+              {title}
+              {state.pinned && <span aria-label="Pinned"> 📌</span>}
+              {muted && <span aria-label="Muted"> 🔕</span>}
+            </span>
+            {status && (
+              <span className={`block text-xs ${statusIsOnline ? 'text-emerald-400' : 'text-slate-400'}`}>
+                {status}
+              </span>
+            )}
+          </span>
+        </button>
 
         <ChatMenu
           conversation={conversation}
           currentUserId={user._id}
           onUpdate={onUpdateState}
           onLeave={onLeave}
+          onStartChat={onStartChat}
         />
       </header>
 
@@ -201,7 +217,9 @@ export default function MessagePane({
                   } ${glowing ? 'ring-2 ring-amber-300' : ''}`}
                 >
                   {!mine && conversation.type === 'group' && (
-                    <p className="text-xs font-semibold text-emerald-300">{message.sender.username}</p>
+                    <p className="text-xs font-semibold text-emerald-300">
+                      {getDisplayName(message.sender)}
+                    </p>
                   )}
 
                   <AttachmentList attachments={message.attachments} />
@@ -251,6 +269,10 @@ export default function MessagePane({
           onStopTyping={stopTyping}
         />
       </div>
+
+      {showProfile && other && (
+        <UserProfileDialog userId={other._id} onClose={() => setShowProfile(false)} />
+      )}
     </section>
   );
 }

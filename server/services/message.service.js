@@ -4,7 +4,7 @@ import Conversation from '../models/Conversation.js';
 import { AppError } from '../utils/AppError.js';
 import { getConversationForMember } from './conversation.service.js';
 
-const SENDER_FIELDS = 'username avatar';
+const SENDER_FIELDS = 'username displayName avatar';
 
 // A message needs text, files, or both.
 export const createMessage = async ({ conversationId, senderId, content = '', attachments = [] }) => {

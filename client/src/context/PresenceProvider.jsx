@@ -50,9 +50,9 @@ export default function PresenceProvider({ children }) {
 
   const isOnline = useCallback((userId) => onlineIds.has(userId), [onlineIds]);
 
-  // Live value if we have one, otherwise the value saved in the database.
+  // A live value (even "hidden", which is null) wins over the value saved in the database.
   const getLastSeen = useCallback(
-    (member) => lastSeenById[member._id] ?? member.lastSeen,
+    (member) => (member._id in lastSeenById ? lastSeenById[member._id] : member.lastSeen),
     [lastSeenById]
   );
 

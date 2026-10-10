@@ -43,9 +43,9 @@ export const useMessageNotifications = ({ conversations, activeId, onOpen }) => 
       // Muted chats and spam stay quiet.
       if (conversation && (isMuted(conversation) || getState(conversation).spam)) return;
 
-      const title = conversation ? getConversationTitle(conversation, myId) : message.sender.username;
+      const title = conversation ? getConversationTitle(conversation, myId) : (message.sender.displayName || message.sender.username);
       const preview = getMessagePreview(message);
-      const text = conversation?.type === 'group' ? `${message.sender.username}: ${preview}` : preview;
+      const text = conversation?.type === 'group' ? `${(message.sender.displayName || message.sender.username)}: ${preview}` : preview;
 
       if (document.visibilityState === 'hidden') {
         if ('Notification' in window && Notification.permission === 'granted') {

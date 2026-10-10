@@ -33,7 +33,7 @@ export const searchMessages = async ({ userId, query, conversationId, senderId, 
     .sort({ _id: -1 })
     .limit(limit + 1)
     .select('conversation sender content attachments createdAt')
-    .populate('sender', 'username avatar');
+    .populate('sender', 'username displayName avatar');
 
   const hasMore = found.length > limit;
   const results = hasMore ? found.slice(0, limit) : found;

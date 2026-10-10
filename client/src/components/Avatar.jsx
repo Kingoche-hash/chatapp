@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 const COLORS = [
   'bg-emerald-600',
   'bg-sky-600',
@@ -13,6 +15,7 @@ const SIZES = {
   sm: 'h-8 w-8 text-sm',
   md: 'h-10 w-10 text-base',
   lg: 'h-12 w-12 text-lg',
+  xl: 'h-24 w-24 text-4xl',
 };
 
 // The same name always gets the same colour.
@@ -22,18 +25,26 @@ const colorFor = (name) => {
   return COLORS[hash % COLORS.length];
 };
 
-// A coloured circle with the first letter of the name. `online` adds a green or grey dot.
-export default function Avatar({ name = '?', size = 'md', online = null }) {
+// The person's photo if they have one, otherwise a coloured circle with their first letter.
+// `online` adds a green or grey dot.
+export default function Avatar({ name = '?', src = '', size = 'md', online = null }) {
+  const [failedSrc, setFailedSrc] = useState('');
+
   const initial = (name.trim()[0] || '?').toUpperCase();
+  const showImage = Boolean(src) && failedSrc !== src;
 
   return (
     <span className="relative inline-block shrink-0">
-      <span
-        aria-hidden="true"
-        className={`flex items-center justify-center rounded-full font-semibold text-white ${SIZES[size]} ${colorFor(name)}`}
-      >
-        {initial}
-      </span>
+      {showImage ? (
+        <img src={src} alt="" onError={() => setFailedSrc(src)} className={`rounded-full object-cover ${SIZES[size]}`} />
+      ) : (
+        <span
+          aria-hidden="true"
+          className={`flex items-center justify-center rounded-full font-semibold text-white ${SIZES[size]} ${colorFor(name)}`}
+        >
+          {initial}
+        </span>
+      )}
       {online !== null && (
         <span
           role="img"

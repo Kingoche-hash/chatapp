@@ -4,12 +4,21 @@ import User from '../models/User.js';
 import { AppError } from '../utils/AppError.js';
 import { DEFAULT_STATE, getStatesById } from './conversationState.service.js';
 
-const MEMBER_FIELDS = 'username avatar isOnline lastSeen';
+const MEMBER_FIELDS =
+  'username displayName avatar isOnline lastSeen privacy.showPresence privacy.readReceipts';
 
 const populateConversation = (query) =>
   query
     .populate('members', MEMBER_FIELDS)
     .populate({ path: 'lastMessage', select: 'content sender createdAt attachments' });
+
+// People who switched off "show when I'm online" must not leak it through the member list.
+const hidePrivateDetails = (conversationJson) => ({
+  ...conversationJson,
+  members: conversationJson.members.map((member) =>
+    member.privacy?.showPresence === false ? { ...member, isOnline: false, lastSeen: null } : member
+  ),
+});
 
 // The access check used everywhere: is this user sitting at this table?
 export const getConversationForMember = async (conversationId, userId) => {
@@ -27,8 +36,8 @@ export const createDirectConversation = async (currentUserId, otherUserId) => {
     throw new AppError('You cannot start a conversation with yourself', 400);
   }
 
-  const otherExists = await User.exists({ _id: otherUserId });
-  if (!otherExists) {
+  const other = await User.findOne({ _id: otherUserId, deletedAt: null }).select('_id');
+  if (!other) {
     throw new AppError('User not found', 404);
   }
 
@@ -54,7 +63,7 @@ export const createDirectConversation = async (currentUserId, otherUserId) => {
   }
 
   const populated = await populateConversation(Conversation.findById(conversation._id));
-  return { conversation: populated, created };
+  return { conversation: hidePrivateDetails(populated.toJSON()), created };
 };
 
 export const createGroupConversation = async (currentUserId, { name, memberIds }) => {
@@ -64,7 +73,7 @@ export const createGroupConversation = async (currentUserId, { name, memberIds }
     throw new AppError('A group needs at least one other member', 400);
   }
 
-  const found = await User.countDocuments({ _id: { $in: ids } });
+  const found = await User.countDocuments({ _id: { $in: ids }, deletedAt: null });
   if (found !== ids.length) {
     throw new AppError('One or more users do not exist', 404);
   }
@@ -76,7 +85,8 @@ export const createGroupConversation = async (currentUserId, { name, memberIds }
     createdBy: currentUserId,
   });
 
-  return populateConversation(Conversation.findById(conversation._id));
+  const populated = await populateConversation(Conversation.findById(conversation._id));
+  return hidePrivateDetails(populated.toJSON());
 };
 
 // My conversations, newest first. Each has my unread count and my private settings (pinned, muted...).
@@ -109,7 +119,7 @@ export const listConversations = async (userId) => {
     const id = conversation._id.toString();
 
     return {
-      ...conversation.toJSON(),
+      ...hidePrivateDetails(conversation.toJSON()),
       unreadCount: unreadById.get(id) ?? 0,
       state: states.get(id) ?? { ...DEFAULT_STATE },
     };
@@ -125,5 +135,5 @@ export const getConversation = async (conversationId, userId) => {
     throw new AppError('Conversation not found', 404);
   }
 
-  return conversation;
+  return hidePrivateDetails(conversation.toJSON());
 };

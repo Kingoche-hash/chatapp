@@ -13,7 +13,9 @@ export const protect = async (req, res, next) => {
   const payload = verifyToken(token);
 
   const user = await User.findById(payload.sub);
-  if (!user) {
+
+  // A deleted account can no longer use its old wristband.
+  if (!user || user.deletedAt) {
     throw new AppError('User no longer exists', 401);
   }
 

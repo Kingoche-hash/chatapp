@@ -125,7 +125,7 @@ export default function SearchPanel({ conversations, activeConversation, onOpen 
                   <span className="shrink-0">{formatDateTime(result.createdAt)}</span>
                 </div>
                 <p className="text-xs text-emerald-300">
-                  {result.sender._id === user._id ? 'You' : result.sender.username}
+                  {result.sender._id === user._id ? 'You' : (result.sender.displayName || result.sender.username)}
                 </p>
                 <p className="line-clamp-2 break-words text-sm">
                   <HighlightedText text={result.content} query={query} />
